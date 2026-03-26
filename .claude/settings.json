@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run ruff format"
+          },
+          {
+            "type": "command",
+            "command": "uv run ruff check 1>&2 && uv run mypy . 1>&2 || exit 2"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 tests/e2e.py 1>&2 || exit 2"
+          }
+        ]
+      }
+    ]
+  }
+}

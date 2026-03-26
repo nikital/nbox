@@ -1,0 +1,15 @@
+FROM registry.fedoraproject.org/fedora:43
+ARG USER
+ARG UID
+ARG HOME
+
+# Reinstall shadow-utils because the fedora image doesn't have setuid capability...
+RUN dnf install -y podman sudo && \
+    dnf reinstall -y shadow-utils && \
+    dnf clean all
+
+RUN useradd -u $UID -d $HOME -m $USER && \
+    echo "$USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$USER && \
+    chmod 440 /etc/sudoers.d/$USER && \
+    echo "$USER:2000:63000" > /etc/subuid && \
+    echo "$USER:2000:63000" > /etc/subgid

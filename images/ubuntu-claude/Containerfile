@@ -1,0 +1,12 @@
+ARG USER
+FROM localhost/ubuntu:nbox-${USER}
+ARG USER
+ARG HOME
+
+USER root
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+USER ${USER}
+ENV PATH="${HOME}/.local/bin:${PATH}"
+RUN curl -fsSL https://claude.ai/install.sh | bash
+COPY ./settings.json $HOME/.claude/settings.json
