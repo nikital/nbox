@@ -1,11 +1,10 @@
-FROM registry.fedoraproject.org/fedora:43
+FROM registry.fedoraproject.org/fedora-toolbox:43
 ARG USER
 ARG UID
 ARG HOME
 
 # Reinstall shadow-utils because the fedora image doesn't have setuid capability...
-RUN dnf install -y podman sudo && \
-    dnf reinstall -y shadow-utils && \
+RUN dnf reinstall -y shadow-utils && \
     dnf clean all
 
 RUN useradd -u $UID -d $HOME -m $USER && \

@@ -1,5 +1,5 @@
 ARG USER
-FROM localhost/fedora:nbox-${USER}
+FROM localhost/fedora-toolbox:nbox-${USER}
 ARG USER
 ARG HOME
 

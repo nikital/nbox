@@ -139,7 +139,7 @@ def image_choice_for(image: str) -> str:
 
 def image_tests(image: str) -> None:
     image_choice = image_choice_for(image)
-    # image tag is e.g. "localhost/fedora:nbox-nikita" — use the name part
+    # image tag is e.g. "localhost/fedora-toolbox:nbox-nikita" — use the name part
     slug = image.split("/")[-1].split(":")[0]
     project = TMP / f"project-image-{slug}"
     project.mkdir()
@@ -470,12 +470,21 @@ def main() -> None:
             for d in (REPO_ROOT / "images").iterdir()
             if d.is_dir() and (d / "Containerfile").exists()
         )
-        for i, name in enumerate(image_dirs, 1):
+        # HACK: Sort manually for now.
+        image_dirs_sorted_by_dependency = [
+            "fedora-toolbox",
+            "fedora-claude",
+            "ubuntu",
+            "ubuntu-claude",
+        ]
+        assert set(image_dirs) == set(image_dirs_sorted_by_dependency)
+        image_index = {image: i for i, image in enumerate(image_dirs, 1)}
+        for name in image_dirs_sorted_by_dependency:
             print(f"--- build {name} ---")
-            sh_in(MANAGE, "build", stdin=f"{i}\n")
+            sh_in(MANAGE, "build", stdin=f"{image_index[name]}\n")
 
         images = nbox_images()
-        fedora = next(i for i in images if "/fedora:" in i)
+        fedora = next(i for i in images if "/fedora-toolbox:" in i)
         system_tests(fedora)
         config_freeze_tests(fedora)
         for image in images:
