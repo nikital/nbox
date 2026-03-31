@@ -3,6 +3,7 @@ import dataclasses
 import json
 import os
 import pwd
+import re
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -137,9 +138,24 @@ def pick_containerfile(name: str | None = None) -> Path:
         print("Invalid choice, try again.")
 
 
-def cmd_build(image: str | None) -> None:
-    image_dir = pick_containerfile(image)
+def find_image_dir(name: str) -> Path | None:
+    for root in images_dirs():
+        d = root / name
+        if d.is_dir() and (d / "Containerfile").exists():
+            return d
+    return None
+
+
+def build_image(image_dir: Path) -> None:
     pw = pwd.getpwuid(os.getuid())
+    # If the FROM base is a local nbox image, build it first.
+    containerfile = (image_dir / "Containerfile").read_text()
+    m = re.search(
+        r"^FROM\s+localhost/([^:\s]+):nbox-\$\{USER\}", containerfile, re.MULTILINE
+    )
+    if m:
+        if parent := find_image_dir(m.group(1)):
+            build_image(parent)
     tag = f"{image_dir.name}:nbox-{pw.pw_name}"
     subprocess.check_call(
         [
@@ -156,6 +172,10 @@ def cmd_build(image: str | None) -> None:
             tag,
         ]
     )
+
+
+def cmd_build(image: str | None) -> None:
+    build_image(pick_containerfile(image))
 
 
 def pick_image(name: str | None = None) -> str:

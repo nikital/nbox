@@ -456,6 +456,18 @@ def system_tests(image: str) -> None:
 
     shutil.rmtree(local_images.parent)
 
+    print("--- dep build builds base ---")
+
+    # fedora-claude depends on fedora-toolbox. Build it and check the output
+    # shows the base was built too.
+    p = subprocess.run(
+        (MANAGE, "build", "--image", "fedora-claude"),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert_contains("COMMIT fedora-toolbox:nbox-", p.stdout + p.stderr)
+
 
 def main() -> None:
     global PASS, FAIL
@@ -469,26 +481,18 @@ def main() -> None:
             for d in (REPO_ROOT / "images").iterdir()
             if d.is_dir() and (d / "Containerfile").exists()
         )
-        # HACK: Sort manually for now.
-        image_dirs_sorted_by_dependency = [
-            "fedora-toolbox",
-            "fedora-claude",
-            "ubuntu",
-            "ubuntu-claude",
-        ]
-        assert set(image_dirs) == set(image_dirs_sorted_by_dependency)
-        # First build uses interactive input to test that path
-        first = image_dirs_sorted_by_dependency[0]
+        # First build uses interactive input to test that path.
         image_index = {img: i for i, img in enumerate(image_dirs, 1)}
+        first = image_dirs[0]
         print(f"--- build {first} (interactive) ---")
         sh_in(MANAGE, "build", stdin=f"{image_index[first]}\n")
-        for name in image_dirs_sorted_by_dependency[1:]:
+        for name in image_dirs[1:]:
             print(f"--- build {name} ---")
             sh(MANAGE, "build", "--image", name)
 
         system_tests("fedora-toolbox")
         config_freeze_tests("fedora-toolbox")
-        for image in image_dirs_sorted_by_dependency:
+        for image in image_dirs:
             print(f"\n=== image_tests: {image} ===")
             image_tests(image)
     finally:
