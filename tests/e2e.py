@@ -121,32 +121,31 @@ def containers_list() -> set[str]:
     return set(sh_out("podman", "ps", "-a", "--format", "{{.Names}}").splitlines())
 
 
-def nbox_images() -> list[str]:
-    out = sh_out("podman", "images", "--format", "{{.Repository}}:{{.Tag}}")
-    images = sorted(line for line in out.splitlines() if line and ":nbox-" in line)
-    assert images, "no nbox images found"
-    return images
+def nbox_tag(image: str) -> str:
+    """fedora-toolbox -> localhost/fedora-toolbox:nbox-<user>"""
+    import pwd
+
+    return f"localhost/{image}:nbox-{pwd.getpwuid(os.getuid()).pw_name}"
 
 
 def image_choice_for(image: str) -> str:
+    """Return the interactive menu index for an nbox image name."""
+    tag = nbox_tag(image)
     out = sh_out("podman", "images", "--format", "{{.Repository}}:{{.Tag}}")
     images = sorted(line for line in out.splitlines() if line and "<none>" not in line)
     for i, img in enumerate(images, 1):
-        if img == image:
+        if img == tag:
             return f"{i}\n"
-    assert False, f"image {image!r} not found in: {images}"
+    assert False, f"image {tag!r} not found in: {images}"
 
 
 def image_tests(image: str) -> None:
-    image_choice = image_choice_for(image)
-    # image tag is e.g. "localhost/fedora-toolbox:nbox-nikita" — use the name part
-    slug = image.split("/")[-1].split(":")[0]
-    project = TMP / f"project-image-{slug}"
+    project = TMP / f"project-image-{image}"
     project.mkdir()
     subdir = project / "sub" / "dir"
     subdir.mkdir(parents=True)
 
-    sh_in(MANAGE, "create", project, stdin=image_choice)
+    sh(MANAGE, "create", "--image", image, project)
 
     print("--- exec ---")
 
@@ -186,9 +185,9 @@ def image_tests(image: str) -> None:
         )
         assert_contains("Error: mounting new container", r.stderr)
 
-        podman_project = TMP / f"project-podman-{slug}"
+        podman_project = TMP / f"project-podman-{image}"
         podman_project.mkdir()
-        sh_in(MANAGE, "create", "--podman", podman_project, stdin=image_choice)
+        sh(MANAGE, "create", "--podman", "--image", image, podman_project)
         sh_in(
             NBOX,
             "podman",
@@ -224,7 +223,7 @@ def container_create_cmd(container: str) -> list[str]:
 
 
 def config_freeze_tests(image: str) -> None:
-    image_choice = image_choice_for(image)
+    tag = nbox_tag(image)
     project = TMP / "project-freeze"
     project.mkdir()
     (project / ".git").mkdir()
@@ -251,7 +250,7 @@ def config_freeze_tests(image: str) -> None:
         "keep-id",
         "--security-opt",
         "label=disable",
-        image,
+        tag,
         "sleep",
         "infinity",
     ]
@@ -280,21 +279,21 @@ def config_freeze_tests(image: str) -> None:
         "unmask=ALL",
         "--security-opt",
         "seccomp=unconfined",
-        image,
+        tag,
         "sleep",
         "infinity",
     ]
 
     print("--- config freeze: normal ---")
 
-    sh_in(MANAGE, "create", project, stdin=image_choice)
+    sh(MANAGE, "create", "--image", image, project)
     cmd = container_create_cmd(name)
     assert_eq("normal nbox command", repr(expected_normal), repr(cmd))
     sh(MANAGE, "delete", project)
 
     print("--- config freeze: podman ---")
 
-    sh_in(MANAGE, "create", "--podman", project, stdin=image_choice)
+    sh(MANAGE, "create", "--podman", "--image", image, project)
     cmd = container_create_cmd(name)
     assert_eq("podman nbox command", repr(expected_podman), repr(cmd))
     sh(MANAGE, "delete", project)
@@ -305,7 +304,7 @@ def system_tests(image: str) -> None:
     project_a = TMP / "project-a"
     project_a.mkdir()
 
-    print("--- create ---")
+    print("--- create (interactive) ---")
 
     sh_in(MANAGE, "create", project_a, stdin=image_choice)
 
@@ -338,7 +337,7 @@ def system_tests(image: str) -> None:
     project_b_inner = TMP / "project-b" / "inner"
     project_b_inner.mkdir(parents=True)
 
-    sh_in(MANAGE, "create", project_b_inner, stdin=image_choice)
+    sh(MANAGE, "create", "--image", image, project_b_inner)
 
     r = sh_io_fail(MANAGE, "create", TMP / "project-b", stdin="1\n")
     assert_contains("inside this path", r.stderr)
@@ -388,7 +387,7 @@ def system_tests(image: str) -> None:
     (project_ro / "sub").mkdir()
     (project_ro / "sub" / ".git").mkdir()
 
-    sh_in(MANAGE, "create", project_ro, stdin=image_choice)
+    sh(MANAGE, "create", "--image", image, project_ro)
 
     cfg_ro = project_json(project_ro)
     assert_eq(
@@ -413,7 +412,7 @@ def system_tests(image: str) -> None:
 
     deep = TMP / "deep" / "nested" / "project"
     deep.mkdir(parents=True)
-    sh_in(MANAGE, "create", deep, stdin=image_choice)
+    sh(MANAGE, "create", "--image", image, deep)
 
     # Intermediate dirs between TMP and the mount point should be owned by
     # the user, not root.  Podman creates them as root when setting up the
@@ -478,16 +477,18 @@ def main() -> None:
             "ubuntu-claude",
         ]
         assert set(image_dirs) == set(image_dirs_sorted_by_dependency)
-        image_index = {image: i for i, image in enumerate(image_dirs, 1)}
-        for name in image_dirs_sorted_by_dependency:
+        # First build uses interactive input to test that path
+        first = image_dirs_sorted_by_dependency[0]
+        image_index = {img: i for i, img in enumerate(image_dirs, 1)}
+        print(f"--- build {first} (interactive) ---")
+        sh_in(MANAGE, "build", stdin=f"{image_index[first]}\n")
+        for name in image_dirs_sorted_by_dependency[1:]:
             print(f"--- build {name} ---")
-            sh_in(MANAGE, "build", stdin=f"{image_index[name]}\n")
+            sh(MANAGE, "build", "--image", name)
 
-        images = nbox_images()
-        fedora = next(i for i in images if "/fedora-toolbox:" in i)
-        system_tests(fedora)
-        config_freeze_tests(fedora)
-        for image in images:
+        system_tests("fedora-toolbox")
+        config_freeze_tests("fedora-toolbox")
+        for image in image_dirs_sorted_by_dependency:
             print(f"\n=== image_tests: {image} ===")
             image_tests(image)
     finally:

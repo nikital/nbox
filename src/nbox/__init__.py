@@ -111,7 +111,7 @@ def ensure_running(container: str) -> None:
         subprocess.run(["podman", "start", container], check=True)
 
 
-def pick_containerfile() -> Path:
+def pick_containerfile(name: str | None = None) -> Path:
     dirs = sorted(
         d
         for root in images_dirs()
@@ -122,6 +122,11 @@ def pick_containerfile() -> Path:
     if not dirs:
         print("No Containerfiles found in images/", file=sys.stderr)
         sys.exit(1)
+    if name is not None:
+        matches = [d for d in dirs if d.name == name]
+        if len(matches) != 1:
+            raise RuntimeError(f"Multiple images matches: {matches}")
+        return matches[0]
     print("Available images:")
     for i, d in enumerate(dirs, 1):
         print(f"  {i}) {d.name}")
@@ -132,8 +137,8 @@ def pick_containerfile() -> Path:
         print("Invalid choice, try again.")
 
 
-def cmd_build() -> None:
-    image_dir = pick_containerfile()
+def cmd_build(image: str | None) -> None:
+    image_dir = pick_containerfile(image)
     pw = pwd.getpwuid(os.getuid())
     tag = f"{image_dir.name}:nbox-{pw.pw_name}"
     subprocess.check_call(
@@ -153,7 +158,7 @@ def cmd_build() -> None:
     )
 
 
-def pick_image() -> str:
+def pick_image(name: str | None = None) -> str:
     result = subprocess.run(
         ["podman", "images", "--format", "{{.Repository}}:{{.Tag}}"],
         capture_output=True,
@@ -166,6 +171,14 @@ def pick_image() -> str:
     if not images:
         print("No local images found. Pull an image first.", file=sys.stderr)
         sys.exit(1)
+    if name is not None:
+        nbox_images = [i for i in images if ":nbox-" in i]
+        matches = [
+            i for i in nbox_images if f"/{name}:" in i or i.startswith(f"{name}:")
+        ]
+        if len(matches) != 1:
+            raise RuntimeError(f"Multiple images matches: {matches}")
+        return matches[0]
     print("Available images:")
     for i, img in enumerate(images, 1):
         print(f"  {i}) {img}")
@@ -176,7 +189,7 @@ def pick_image() -> str:
         print("Invalid choice, try again.")
 
 
-def cmd_create(path_arg: Path, podman: bool) -> None:
+def cmd_create(path_arg: Path, podman: bool, image: str | None) -> None:
     path = path_arg.resolve()
     path_str = str(path)
     name = container_name(path)
@@ -194,7 +207,7 @@ def cmd_create(path_arg: Path, podman: bool) -> None:
         if proj.is_relative_to(path):
             print(f"Existing project is inside this path: {proj}", file=sys.stderr)
             sys.exit(1)
-    image = pick_image()
+    image_tag = pick_image(image)
     ro = compute_ro_paths(path)
     ro_mounts: list[str] = []
     for rp in ro:
@@ -229,7 +242,7 @@ def cmd_create(path_arg: Path, podman: bool) -> None:
             "--security-opt",
             "label=disable",
             *flags,
-            image,
+            image_tag,
             "sleep",
             "infinity",
         ],
@@ -295,7 +308,8 @@ def cmd_delete(path_arg: Path | None) -> None:
 def manage() -> None:
     parser = argparse.ArgumentParser()
     cmd = parser.add_subparsers(dest="command", required=True)
-    cmd.add_parser(CMD_BUILD, help="Build a sandbox image")
+    build = cmd.add_parser(CMD_BUILD, help="Build a sandbox image")
+    build.add_argument("--image", help="Image name")
     cmd.add_parser(CMD_LIST, help="List registered projects")
     create = cmd.add_parser(
         CMD_CREATE, help="Register a project and start its container"
@@ -304,6 +318,7 @@ def manage() -> None:
     create.add_argument(
         "--podman", action="store_true", help="Allow podman inside the sandbox"
     )
+    create.add_argument("--image", help="Image name")
     delete = cmd.add_parser(
         CMD_DELETE, help="Stop and remove container, deregister project"
     )
@@ -312,11 +327,11 @@ def manage() -> None:
     )
     args = parser.parse_args()
     if args.command == CMD_BUILD:
-        cmd_build()
+        cmd_build(args.image)
     elif args.command == CMD_LIST:
         cmd_list()
     elif args.command == CMD_CREATE:
-        cmd_create(args.path, args.podman)
+        cmd_create(args.path, args.podman, args.image)
     elif args.command == CMD_DELETE:
         cmd_delete(args.path)
 
