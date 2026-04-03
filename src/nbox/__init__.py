@@ -4,11 +4,13 @@ import json
 import os
 import pwd
 import re
+import shutil
 import subprocess
 import sys
 from collections.abc import Iterator
 from pathlib import Path
 
+CMD_BIN = "bin"
 CMD_BUILD = "build"
 CMD_CREATE = "create"
 CMD_DELETE = "delete"
@@ -288,6 +290,28 @@ def cmd_create(path_arg: Path, podman: bool, image: str | None) -> None:
     save_projects(projects)
 
 
+def bin_dir() -> Path:
+    return config_dir() / "bin"
+
+
+def cmd_bin(name: str) -> None:
+    nbox_path = shutil.which("nbox")
+    if nbox_path is None:
+        print("nbox not found in PATH", file=sys.stderr)
+        sys.exit(1)
+    d = bin_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    link = d / f"nbox-{name}"
+    if link.is_symlink() and str(link.readlink()) == nbox_path:
+        print(f"Link exists.")
+        return
+    if link.exists() or link.is_symlink():
+        print(f"{link} exists but points elsewhere?", file=sys.stderr)
+        sys.exit(1)
+    link.symlink_to(nbox_path)
+    print(f"{link} -> {nbox_path}")
+
+
 def cmd_list() -> None:
     projects = load_projects()
     for path, cfg in sorted(projects.items()):
@@ -330,6 +354,8 @@ def manage() -> None:
     cmd = parser.add_subparsers(dest="command", required=True)
     build = cmd.add_parser(CMD_BUILD, help="Build a sandbox image")
     build.add_argument("--image", help="Image name")
+    bin_cmd = cmd.add_parser(CMD_BIN, help="Create multicall symlink nbox-<name>")
+    bin_cmd.add_argument("name", help="Command name")
     cmd.add_parser(CMD_LIST, help="List registered projects")
     create = cmd.add_parser(
         CMD_CREATE, help="Register a project and start its container"
@@ -346,7 +372,9 @@ def manage() -> None:
         "path", type=Path, nargs="?", help="Project directory to remove"
     )
     args = parser.parse_args()
-    if args.command == CMD_BUILD:
+    if args.command == CMD_BIN:
+        cmd_bin(args.name)
+    elif args.command == CMD_BUILD:
         cmd_build(args.image)
     elif args.command == CMD_LIST:
         cmd_list()
@@ -357,7 +385,13 @@ def manage() -> None:
 
 
 def nbox() -> None:
-    args = sys.argv[1:]
+    # Multicall: if invoked as "nbox-foo", behave as "nbox foo".
+    stem = Path(sys.argv[0]).stem
+    if stem.startswith("nbox-"):
+        args = [stem.removeprefix("nbox-"), *sys.argv[1:]]
+    else:
+        args = sys.argv[1:]
+
     if not args:
         print("Usage: nbox <cmd> [args...]", file=sys.stderr)
         sys.exit(1)

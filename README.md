@@ -27,6 +27,23 @@ nbox make test                 # run any command
 
 Other management commands exist, see `manage-nbox --help`.
 
+### Multicall symlinks
+
+Motivating usecase: Your editor has a setting for a single binary path for an
+LSP server, for example Emacs has `lsp-clients-clangd-executable`. You want to
+run the LSP server in `nbox`. You can't pass `"nbox clangd"` for the executable
+because then Emacs will try to invoke it literally as an executable with a space
+in the name and it won't work.
+
+So for cases that need a fixed binary path, `nbox` supports Busybox-style
+multicall symlinks:
+
+```sh
+manage-nbox bin clangd
+# Equivalent to nbox clangd:
+$XDG_CONFIG_HOME/nbox/bin/nbox-clangd
+```
+
 ## Security
 
 Security is provided by a Podman container, it's up to you to decide if this
@@ -51,7 +68,8 @@ the changes with Git, the environment may be poisoned with malicious code in
 `.gitignore`d paths like `node_modules` / `__pycache__` / venv / `.o`
 files. Beware of indirect execution via LSP servers, for example `rust-analyzer`
 will happily run `build.rs` from a dependency. Install LSP servers in the
-sandbox and run them with `nbox rust-analyzer`.
+sandbox and run them with `nbox rust-analyzer` (or use the `nbox-rust-analyzer`
+multicall symlink).
 
 To make a sandboxed directory trustworthy again you need to kill the sandbox
 (`manage-nbox delete`), then `git clean -xdf`.

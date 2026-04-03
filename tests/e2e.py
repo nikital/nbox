@@ -424,6 +424,23 @@ def system_tests(image: str) -> None:
 
     sh(MANAGE, "delete", deep)
 
+    print("--- bin multicall ---")
+
+    # manage-nbox bin creates symlink (needs nbox in PATH)
+    env_path = str(REPO_ROOT / "bin") + ":" + os.environ.get("PATH", "")
+    os.environ["PATH"] = env_path
+    out = sh_out(MANAGE, "bin", "echo")
+    xdg = Path(os.environ["XDG_CONFIG_HOME"])
+    link = xdg / "nbox" / "bin" / "nbox-echo"
+    assert_true("symlink created", link.is_symlink())
+
+    # multicall symlink works
+    out = sh_out(str(link), "hello", cwd=project_a)
+    assert_contains("hello", out)
+
+    # idempotent — same target is not an error
+    sh(MANAGE, "bin", "echo")
+
     print("--- delete ---")
 
     container = project_container(project_a)
