@@ -413,5 +413,5 @@ def nbox() -> None:
         sys.exit(1)
     ensure_running(cfg.container)
     flags = ["-it"] if sys.stdin.isatty() else ["-i"]
-    result = subprocess.run(["podman", "exec", *flags, "-w", cwd, cfg.container, *args])
-    sys.exit(result.returncode)
+    cmd = ["podman", "exec", *flags, "-w", str(cwd), cfg.container, *args]
+    os.execvp(cmd[0], cmd)
