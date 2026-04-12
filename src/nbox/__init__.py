@@ -417,5 +417,17 @@ def nbox() -> None:
         sys.exit(1)
     ensure_running(cfg.container)
     flags = ["-it"] if sys.stdin.isatty() else ["-i"]
-    cmd = ["podman", "exec", *flags, "-w", str(cwd), cfg.container, *args]
+    cmd = [
+        "podman",
+        "exec",
+        *flags,
+        "-w",
+        str(cwd),
+        cfg.container,
+        "bash",
+        "-lc",
+        'exec "$@"',
+        "--",
+        *args,
+    ]
     os.execvp(cmd[0], cmd)

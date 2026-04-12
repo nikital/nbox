@@ -367,6 +367,13 @@ def system_tests(image: str) -> None:
     out = sh_io(NBOX, "cat", stdin="meow", cwd=project_a)
     assert_eq("cat echoes stdin", "meow", out)
 
+    print("--- login shell env ---")
+
+    # .bashrc exports should be visible via nbox exec (login shell)
+    sh_out(NBOX, "bash", "-c", "echo 'export HELLO=box' >> ~/.bashrc", cwd=project_a)
+    out = sh_out(NBOX, "env", cwd=project_a)
+    assert_contains("HELLO=box", out)
+
     print("--- restart stopped ---")
 
     container = project_container(project_a)
