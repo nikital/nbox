@@ -264,6 +264,10 @@ def cmd_create(path_arg: Path, podman: bool, image: str | None) -> None:
             "--security-opt",
             "label=disable",
             *flags,
+            "--tmpfs",
+            "/tmp",
+            "--tmpfs",
+            "/run",
             image_tag,
             "sleep",
             "infinity",
@@ -303,7 +307,7 @@ def cmd_bin(name: str) -> None:
     d.mkdir(parents=True, exist_ok=True)
     link = d / f"nbox-{name}"
     if link.is_symlink() and str(link.readlink()) == nbox_path:
-        print(f"Link exists.")
+        print("Link exists.")
         return
     if link.exists() or link.is_symlink():
         print(f"{link} exists but points elsewhere?", file=sys.stderr)
