@@ -111,7 +111,8 @@ def ensure_running(container: str) -> None:
         text=True,
     )
     if result.stdout.strip() != "true":
-        subprocess.run(["podman", "start", container], check=True)
+        # `podman start` echoes the container name, we'd leak it to nbox stdout.
+        subprocess.check_call(["podman", "start", container], stdout=subprocess.DEVNULL)
 
 
 def pick_containerfile(name: str | None = None) -> Path:
