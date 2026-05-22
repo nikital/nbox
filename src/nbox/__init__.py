@@ -264,6 +264,8 @@ def cmd_create(path_arg: Path, podman: bool, image: str | None) -> None:
             "keep-id",
             "--security-opt",
             "label=disable",
+            "--network",
+            "pasta:-t,auto,-u,auto,-T,auto,-U,auto",
             *flags,
             "--tmpfs",
             "/tmp",
