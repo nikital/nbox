@@ -1,5 +1,6 @@
 import argparse
 import dataclasses
+import itertools
 import json
 import os
 import pwd
@@ -212,7 +213,7 @@ def pick_image(name: str | None = None) -> str:
         print("Invalid choice, try again.")
 
 
-def cmd_create(path_arg: Path, podman: bool, image: str | None) -> None:
+def cmd_create(path_arg: Path, podman: bool, nvidia: bool, image: str | None) -> None:
     path = path_arg.resolve()
     path_str = str(path)
     name = container_name(path)
@@ -237,18 +238,21 @@ def cmd_create(path_arg: Path, podman: bool, image: str | None) -> None:
         abs_path = path / rp
         ro_mounts += ["-v", f"{abs_path}:{abs_path}:ro"]
 
-    flags: list[str] = []
+    flags: set[tuple[str, ...]] = set()
+    # Careful: order of items in the set may be shuffled.
     if podman:
-        flags = [
-            "--device",
-            "/dev/fuse",
-            "--device",
-            "/dev/net/tun",
-            "--security-opt",
-            "unmask=ALL",
-            "--security-opt",
-            "seccomp=unconfined",
-        ]
+        flags.add(("--device", "/dev/fuse"))
+        flags.add(("--device", "/dev/net/tun"))
+        flags.add(("--security-opt", "unmask=ALL"))
+        flags.add(("--security-opt", "seccomp=unconfined"))
+    if nvidia:
+        flags.add(("--device", "/dev/nvidia0"))
+        flags.add(("--device", "/dev/nvidia-caps"))
+        flags.add(("--device", "/dev/nvidiactl"))
+        flags.add(("--device", "/dev/nvidia-uvm"))
+        flags.add(("--device", "/dev/nvidia-uvm-tools"))
+    flags_flat = itertools.chain.from_iterable(sorted(flags))
+
     subprocess.check_call(
         [
             "podman",
@@ -266,7 +270,7 @@ def cmd_create(path_arg: Path, podman: bool, image: str | None) -> None:
             "label=disable",
             "--network",
             "pasta:-t,auto,-u,auto,-T,auto,-U,auto",
-            *flags,
+            *flags_flat,
             "--tmpfs",
             "/tmp",
             "--tmpfs",
@@ -371,6 +375,9 @@ def manage() -> None:
     create.add_argument(
         "--podman", action="store_true", help="Allow podman inside the sandbox"
     )
+    create.add_argument(
+        "--nvidia", action="store_true", help="Mount NVidia inside the sandbox"
+    )
     create.add_argument("--image", help="Image name")
     delete = cmd.add_parser(
         CMD_DELETE, help="Stop and remove container, deregister project"
@@ -386,7 +393,7 @@ def manage() -> None:
     elif args.command == CMD_LIST:
         cmd_list()
     elif args.command == CMD_CREATE:
-        cmd_create(args.path, args.podman, args.image)
+        cmd_create(args.path, args.podman, args.nvidia, args.image)
     elif args.command == CMD_DELETE:
         cmd_delete(args.path)
 

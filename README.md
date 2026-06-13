@@ -83,6 +83,14 @@ bit using `manage-nbox create --podman`. (As of writing - adds `/dev/fuse`,
 `/dev/net/tun`, disables seccomp, unmasks all paths.) The main use-case is
 development of nbox itself.
 
+## Access Nvidia GPU inside the sandbox
+
+`manage-nbox create --nvidia` will mount Nvidia devices inside the sandbox. Note
+that you'll need to synchronize the version of the user space drivers inside the
+sandbox and the kernel drivers outside.  In the future, we may support NVIDIA
+Container Toolkit (ctk) and Container Device Interface (CDI) to inject the
+drivers at runtime.
+
 ## Add personal custom images
 
 nbox looks for Containerfiles in two places:

@@ -284,9 +284,46 @@ def config_freeze_tests(image: str) -> None:
         "--device",
         "/dev/net/tun",
         "--security-opt",
-        "unmask=ALL",
-        "--security-opt",
         "seccomp=unconfined",
+        "--security-opt",
+        "unmask=ALL",
+        "--tmpfs",
+        "/tmp",
+        "--tmpfs",
+        "/run",
+        tag,
+        "sleep",
+        "infinity",
+    ]
+    expected_nvidia = [
+        "podman",
+        "run",
+        "-d",
+        "--name",
+        name,
+        "-v",
+        f"{p}:{p}",
+        "-v",
+        f"{p}/.git:{p}/.git:ro",
+        "-v",
+        f"{p}/sub/dep/.git:{p}/sub/dep/.git:ro",
+        "--init",
+        "--userns",
+        "keep-id",
+        "--security-opt",
+        "label=disable",
+        "--network",
+        "pasta:-t,auto,-u,auto,-T,auto,-U,auto",
+        "--device",
+        "/dev/nvidia-caps",
+        "--device",
+        "/dev/nvidia-uvm",
+        "--device",
+        "/dev/nvidia-uvm-tools",
+        "--device",
+        "/dev/nvidia0",
+        "--device",
+        "/dev/nvidiactl",
         "--tmpfs",
         "/tmp",
         "--tmpfs",
@@ -308,6 +345,13 @@ def config_freeze_tests(image: str) -> None:
     sh(MANAGE, "create", "--podman", "--image", image, project)
     cmd = container_create_cmd(name)
     assert_eq("podman nbox command", repr(expected_podman), repr(cmd))
+    sh(MANAGE, "delete", project)
+
+    print("--- config freeze: nvidia ---")
+
+    sh(MANAGE, "create", "--nvidia", "--image", image, project)
+    cmd = container_create_cmd(name)
+    assert_eq("podman nbox command", repr(expected_nvidia), repr(cmd))
     sh(MANAGE, "delete", project)
 
 
