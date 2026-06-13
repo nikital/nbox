@@ -59,17 +59,17 @@ def sh_out_fail(*args: Arg, cwd: Path | None = None) -> ShErr:
     p = subprocess.run(
         args, capture_output=True, text=True, stdin=subprocess.DEVNULL, cwd=cwd
     )
-    assert p.returncode != 0, (
-        f"expected failure but got exit 0: {args}\n  stdout: {p.stdout}\n  stderr: {p.stderr}"
-    )
+    assert (
+        p.returncode != 0
+    ), f"expected failure but got exit 0: {args}\n  stdout: {p.stdout}\n  stderr: {p.stderr}"
     return ShErr(stderr=p.stderr)
 
 
 def sh_io_fail(*args: Arg, stdin: str, cwd: Path | None = None) -> ShErr:
     p = subprocess.run(args, capture_output=True, text=True, input=stdin, cwd=cwd)
-    assert p.returncode != 0, (
-        f"expected failure but got exit 0: {args}\n  stdout: {p.stdout}\n  stderr: {p.stderr}"
-    )
+    assert (
+        p.returncode != 0
+    ), f"expected failure but got exit 0: {args}\n  stdout: {p.stdout}\n  stderr: {p.stderr}"
     return ShErr(stderr=p.stderr)
 
 
