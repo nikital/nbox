@@ -7,15 +7,15 @@ isolated container, run commands inside it with `nbox`, manage sandboxes with
 ## Install
 
 ```sh
-git clone <repo> && cd nbox
-./install.sh      # symlinks bin/* into ~/.local/bin
+cargo install --path .
 ```
 
-Requires: `podman`, `fd`.
+Requires: `podman`.
 
 ## Usage
 
-Build an image, create a sandbox for your project, then run commands inside it:
+First you need to build an image, then create a sandbox for your project, then
+run commands inside it:
 
 ```sh
 manage-nbox build              # pick and build a Containerfile from images/
@@ -26,6 +26,20 @@ nbox make test                 # run any command
 ```
 
 Other management commands exist, see `manage-nbox --help`.
+
+### Mounts
+
+By default `nbox` will mount only the project directory but you can mount
+additional directories and files with `manage-nbox mount`.
+
+By default everything is be mounted RW, except `.git` directories found in the
+mounts which are mounted RO. You can optionally mount everything RO with `--ro`
+flag.
+
+If the set of mounts changes, `nbox` will refuse to run and ask you to
+`manage-nbox stop` the sandbox and the new mounts will be re-injected on the
+next `nbox` invocation. This includes new `.git` that appear in the mounts,
+since they need to be RO and hence effectively change the set of mounts.
 
 ### Multicall symlinks
 
@@ -48,12 +62,12 @@ $XDG_CONFIG_HOME/nbox/bin/nbox-clangd
 
 Security is provided by a Podman container, it's up to you to decide if this
 boundary is strong enough to run untrusted code. See `config_freeze_tests` in
-[e2e.py](./tests/e2e.py) for the expected Podman command-line that the sandbox
+[e2e.rs](./tests/e2e.rs) for the expected Podman command-line that the sandbox
 will use.
 
-Only the project directory is inside the sandbox, so any code running inside the
-sandbox won't be able to access any credentials you have on your
-machine. (Unless you put credentials in the project folder itself...)
+Only the project directory and explicit mounts are inside the sandbox, so any
+code running inside the sandbox won't be able to access any credentials you have
+on your machine. (Unless you put credentials in them...)
 
 `.git` directories found under the project root are mounted read-only into the
 container. This allows you to treat Git as a "trusted" tool that can be used
@@ -74,22 +88,10 @@ multicall symlink).
 To make a sandboxed directory trustworthy again you need to kill the sandbox
 (`manage-nbox delete`), then `git clean -xdf`.
 
-Another note regarding Git: If the set of read-only directories changes, `nbox`
-will refuse to run and ask you to recreate the sandbox. I didn't find a sane way
-to adjust mounted volumes in a running container so that's what we have for now.
-
 If you want to run Podman inside the sandbox, you need to relax the sandbox a
 bit using `manage-nbox create --podman`. (As of writing - adds `/dev/fuse`,
 `/dev/net/tun`, disables seccomp, unmasks all paths.) The main use-case is
 development of nbox itself.
-
-## Access Nvidia GPU inside the sandbox
-
-`manage-nbox create --nvidia` will mount Nvidia devices inside the sandbox. Note
-that you'll need to synchronize the version of the user space drivers inside the
-sandbox and the kernel drivers outside.  In the future, we may support NVIDIA
-Container Toolkit (ctk) and Container Device Interface (CDI) to inject the
-drivers at runtime.
 
 ## Add personal custom images
 

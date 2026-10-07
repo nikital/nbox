@@ -1,9 +1,0 @@
-ARG USER
-FROM localhost/fedora-toolbox:nbox-${USER}
-ARG USER
-ARG HOME
-
-USER ${USER}
-ENV PATH="${HOME}/.local/bin:${PATH}"
-RUN curl -fsSL https://claude.ai/install.sh | bash
-COPY ./settings.json $HOME/.claude/settings.json
